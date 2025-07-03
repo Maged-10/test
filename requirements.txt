@@ -2,3 +2,4 @@ fastapi
 uvicorn[standard]
 requests
 google-generativeai
+typing-extensions
