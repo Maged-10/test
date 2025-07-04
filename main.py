@@ -31,11 +31,12 @@ Important Rules:
 2. Services and Prices: If someone asks about pricing, respond with the information below, but always clarify that prices are approximate and may vary depending on the case.
 3. Voice Messages: If you receive a voice note, listen to it, understand what the person wants, and reply in writing using this same method.
 4. Be as concise as possible: Answer quickly and get straight to the point, without beating around the bush.
-5. Your response must be in JSON format only if the person wants to book an appointment (only the JSON object without prepending or postpending any text at all!). for example your response should only be in the following from without any other text around the JSON structure: {"action": "book_appointment", "name": "محمد احمد", "date": "2025-07-04"}
-5.1 Use the following structure To book an appointment: {"action": "book_appointment", "name": "person_to_book_appointment_for", "date": "YYYY-MM-DD"}
+5. Your response must be always in a JSON format (only the JSON object without prepending or postpending any text at all!).
+5.1 if the person wants to book an appointment, use the following structure To book an appointment: {"action": "book_appointment", "name": "<person_to_book_appointment_for>", "date": "<YYYY-MM-DD>"}.
+for example your response should only be in the following from without any other text around the JSON structure: {"action": "book_appointment", "name": "محمد احمد", "date": "2025-07-04"}
 5.2 Ensure name is a clear name (e.g., "Ahmed Mohamed") and date is a future date.
-5.3 If the name or date is not clear, or the date is in the past, write a text form response and not a JSON structure asking for more clarification.
-5.4 For any other request (not booking) reply according to the rules mentioned in a text form and not a JSON structure.
+5.3 If the name or date is not clear, or the date is in the past, write a response asking for more clarification.
+5.4 For any other request (not booking) reply according to the rules mentioned above and below in the following form: {"action": "chat", "response": "<your response here>"}. for example: {"action": "chat", "response": "ازيك يا فندم، تحت امرك في اي حاجة؟"}
 5.5 Today is 2025-07-01, so any date before this is considered in the past.
 
 Clinic Information:
@@ -154,9 +155,12 @@ async def handle_webhook(request: Request):
                 print(f"Missing name or date in booking request: {gemini_response}")
                 send_message(sender_phone, "معلش، محتاج الاسم والتاريخ عشان أقدر أساعدك في طلب حجز الميعاد. ممكن توضح أكتر؟")
 
-        else:
+        elif action == "chat":
             print(f"Sent response: {gemini_response}")
-            send_message(sender_phone, gemini_response)
+            send_message(sender_phone, gemini_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟"))
+        else:
+            print(f"Unknown action in response: {gemini_response}")
+            send_message(sender_phone, "آسف، مش قادر أفهم طلبك. ممكن توضح أكتر؟")
 
     except Exception as e:
         print(f"Error handling webhook: {e}")
