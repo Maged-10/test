@@ -4,3 +4,5 @@ requests # requests is used for making HTTP requests
 google-genai # google-genai is used for interacting with Google Gemini AI
 typing-extensions # typing-extensions is used for type hints compatibility
 peewee # peewee is used as an ORM
+psycopg2-binary # psycopg2-binary is used for PostgreSQL database connection
+
