@@ -199,6 +199,7 @@ def get_gemini_response(input): # Removed generation_config parameter
                 system_instruction=DENTAL_CLINIC_SYSTEM_PROMPT,
             ),
         )
+    print(f"Raw Response from Gemini: {response.text}")
     # Always attempt to parse the response as JSON, as the prompt instructs it to be JSON
     try:
         json_response = json.loads(response.text)
