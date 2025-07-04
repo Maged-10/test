@@ -19,7 +19,7 @@ if not all([WHATSAPP_TOKEN, PHONE_NUMBER_ID, VERIFY_TOKEN, GEMINI_API_KEY]):
     raise ValueError("Missing one or more required environment variables.")
 
 # Configure Google Gemini API
-client = genai.Client(api_key='GEMINI_API_KEY')
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 # System Prompt for the Dental Clinic
 # This prompt tells Gemini how to act and how to structure its responses.
