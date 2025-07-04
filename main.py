@@ -128,6 +128,7 @@ async def handle_webhook(request: Request):
         action = gemini_response.get("action")
 
         if action == "book_appointment":
+            print(f"Booking request received: {gemini_response}")
             name = gemini_response.get("name")
             date_str = gemini_response.get("date")
 
@@ -136,16 +137,20 @@ async def handle_webhook(request: Request):
                     # Validate date format and ensure it's in the future
                     appointment_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
                     if appointment_date < datetime.date.today():
+                        print(f"Past date provided: {date_str}")
                         send_message(sender_phone, "معلش، التاريخ اللي طلبته فات. ممكن تختار تاريخ في المستقبل؟")
                     else:
                         Appointment.create(name=name, time=appointment_date)
+                        print(f"Appointment saved: {name} on {date_str}")
                         send_message(sender_phone, f"تمام يا فندم، تم تسجيل طلب حجز ميعاد باسم {name} يوم {date_str}.")
                 except ValueError:
+                    print(f"Invalid date format: {date_str}")
                     send_message(sender_phone, "معلش، صيغة التاريخ مش مظبوطة. ياريت تبعت التاريخ بصيغة سنة-شهر-يوم (YYYY-MM-DD) زي 2025-07-15.")
                 except Exception as db_e:
                     print(f"Error saving appointment to DB: {db_e}")
                     send_message(sender_phone, "آسف، حصل مشكلة في تسجيل الميعاد. ممكن تكلم العيادة على طول على الرقم ده: +20 2 1234-5678")
             else:
+                print(f"Missing name or date in booking request: {gemini_response}")
                 send_message(sender_phone, "معلش، محتاج الاسم والتاريخ عشان أقدر أساعدك في طلب حجز الميعاد. ممكن توضح أكتر؟")
 
         else:
