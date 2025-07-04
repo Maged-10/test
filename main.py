@@ -191,30 +191,23 @@ def get_whatsapp_media_bytes(media_id: str):
         print(f"Error getting media from WhatsApp: {e}")
         return None, None
 
-def get_gemini_response(input_parts: list): # Removed generation_config parameter
+def get_gemini_response(input): # Removed generation_config parameter
     response = client.models.generate_content(
             model='gemini-2.0-flash',
-            contents=input_parts,
+            contents=input,
             config=types.GenerateContentConfig(
                 system_instruction=DENTAL_CLINIC_SYSTEM_PROMPT,
             ),
         )
     # Always attempt to parse the response as JSON, as the prompt instructs it to be JSON
     try:
-        # Strip the leading "json" and whitespace
-        cleaned = response.text.strip()
-
-        # Remove the 'json' prefix if present
-        if cleaned.lower().startswith("json"):
-            cleaned = cleaned[4:].lstrip()
-        print(f"Cleaned response: {cleaned}")
-        json_response = json.loads(cleaned)
+        json_response = json.loads(response.text)
         return json_response
     except json.JSONDecodeError:
         print(f"Gemini returned invalid JSON (falling back to chat): {response.text}")
         # Fallback for invalid JSON: default to chat action with an error message
         # The original prompt already includes a fallback response in Arabic.
-        return {"action": "chat", "response": response.text.strip() or "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟"}
+        return {"action": "chat", "response": response.text or "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟"}
 
 def send_message(to_phone: str, message_text: str):
     """ Sends a text message back to the user on WhatsApp """
