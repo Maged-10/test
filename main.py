@@ -139,11 +139,9 @@ async def handle_webhook(request: Request):
         message = data["entry"][0]["changes"][0]["value"]["messages"][0]
         sender_phone = message["from"]
         msg_type = message["type"]
-        
-        gemini_input_parts = []
-        response_to_user = ""
-
         user_text = message["text"]["body"]
+
+        response_to_user = ""
     
         gemini_structured_response = get_gemini_response(user_text)
 
@@ -179,7 +177,7 @@ async def handle_webhook(request: Request):
 
     except Exception as e:
         print(f"Error handling webhook: {e}")
-        send_message(sender_phone, "آسف، حصل خطأ غير متوقع. يرجى المحاولة مرة أخرى لاحقًا.")
+        return {"status": "ok"}
 
     return {"status": "ok"}
 
