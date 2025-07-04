@@ -154,6 +154,7 @@ async def handle_webhook(request: Request):
                 send_message(sender_phone, "معلش، محتاج الاسم والتاريخ عشان أقدر أساعدك في طلب حجز الميعاد. ممكن توضح أكتر؟")
 
         else:
+            print(f"Sent response: {gemini_response}")
             send_message(sender_phone, gemini_response)
 
     except Exception as e:
