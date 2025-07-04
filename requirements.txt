@@ -5,4 +5,4 @@ google-genai # google-genai is used for interacting with Google Gemini AI
 typing-extensions # typing-extensions is used for type hints compatibility
 peewee # peewee is used as an ORM
 psycopg2-binary # psycopg2-binary is used for PostgreSQL database connection
-
+python-dotenv # python-dotenv is used for loading environment variables from a .env file
