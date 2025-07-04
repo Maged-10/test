@@ -1,21 +1,12 @@
-
-###### for whatsapp
-
-
-
-# curl 'https://graph.facebook.com/v23.0/754730247713324/register' \
-# -H 'Content-Type: application/json' \
-# -H 'Authorization: Bearer EAAU0mJLom4ABOyXHeCN5AP7r3OpLIsMgbC1OGm01DWtepbo3kyIA1BrGFt9W44RDVZA4wZCzEWU2YQToC3mFZBMpSXghI13iF9pBeJ66DD52nVQNxkfnLLiXvaoh5s49i5xKyKRAuSvy0ZA9LlZCwVUWuu2u7eUnppItCVmZAPU0o4W4HlKYjJt9ymrVzZCZAAZDZD' \
-# -d '
-# {
-#   "messaging_product": "whatsapp",
-#   "pin": "012340"
-# }'
-
 from fastapi import FastAPI, Request, HTTPException
 import requests
 import os
 import google.generativeai as genai
+import json
+import datetime
+
+# Import the database connection and Appointment model from db.py
+from db import db, Appointment
 
 app = FastAPI()
 
@@ -34,16 +25,24 @@ if not all([WHATSAPP_TOKEN, PHONE_NUMBER_ID, VERIFY_TOKEN, GEMINI_API_KEY]):
 genai.configure(api_key=GEMINI_API_KEY)
 
 # --- System Prompt for the Dental Clinic ---
-# This prompt tells Gemini how to act. It's the "brain" of your chatbot.
+# This prompt tells Gemini how to act and how to structure its responses.
 DENTAL_CLINIC_SYSTEM_PROMPT = """
 إنت مساعد ذكي بتشتغل مع عيادة "سمايل كير للأسنان" في القاهرة. رد على الناس كأنك واحد مصري عادي، وبشكل مختصر ومباشر.
 
 **قواعد مهمة:**
-1. **اتكلم بالمصري وبس**: استخدم لهجة مصرية طبيعية، زي "إزيك"، "عامل إيه"، "تحت أمرك"، "يا فندم"، "بص يا باشا"، وكده. خليك خفيف وودود.
-2. **إنت مش بتاخد مواعيد**: قول للناس إنك مساعد ذكي ومبتحجزش بنفسك، لكن ممكن تساعدهم بمعلومة أو ترشدهم. لو حد سأل عن الحجز، قوله يتصل بالعيادة على +20 2 1234-5678.
-3. **الخدمات والأسعار**: لو حد سأل عن حاجة، رد بالمعلومة من اللي تحت، بس دايمًا وضّح إن الأسعار تقريبية وممكن تختلف حسب الحالة.
-4. **الرسائل الصوتية**: لو جاتلك ڤويس، اسمعه، افهم الشخص عايز إيه، ورد عليه كتابة بنفس الطريقة دي.
-5. **خليك مختصر على قد ما تقدر**: جاوب بسرعة وادخل في الموضوع، من غير لف ودوران.
+1.  **اتكلم بالمصري وبس**: استخدم لهجة مصرية طبيعية، زي "إزيك"، "عامل إيه"، "تحت أمرك"، "يا فندم"، "بص يا باشا"، وكده. خليك خفيف وودود.
+2.  **إنت مش بتاخد مواعيد**: قول للناس إنك مساعد ذكي ومبتحجزش بنفسك، لكن ممكن تساعدهم بمعلومة أو ترشدهم. لو حد سأل عن الحجز، قوله يتصل بالعيادة على +20 2 1234-5678.
+3.  **الخدمات والأسعار**: لو حد سأل عن حاجة، رد بالمعلومة من اللي تحت، بس دايمًا وضّح إن الأسعار تقريبية وممكن تختلف حسب الحالة.
+4.  **الرسائل الصوتية**: لو جاتلك ڤويس، اسمعه، افهم الشخص عايز إيه، ورد عليه كتابة بنفس الطريقة دي.
+5.  **خليك مختصر على قد ما تقدر**: جاوب بسرعة وادخل في الموضوع، من غير لف ودوران.
+
+**يجب أن يكون ردك دائمًا بتنسيق JSON (بدون أي نص إضافي قبل أو بعد الـ JSON). استخدم الهيكل التالي:**
+* **لحجز موعد:** `{"action": "book_appointment", "name": "اسم_الشخص_المطلوب_حجز_الموعد_له", "date": "YYYY-MM-DD"}`
+    * تأكد أن `name` هو اسم واضح (مثلاً "أحمد محمد") وأن `date` هو تاريخ مستقبلي بتنسيق "YYYY-MM-DD".
+    * إذا لم يكن الاسم أو التاريخ واضحين، أو كان التاريخ في الماضي، فاجعل `action` تساوي `null` واكتب رداً نصياً عادياً في حقل `response` تطلب فيه توضيحاً.
+* **للاستعلام عن المواعيد:** `{"action": "list_appointments"}`
+* **لأي طلب آخر (غير الحجز أو الاستعلام عن المواعيد):** `{"action": "chat", "response": "الرد_النصي_العادي_هنا"}`
+    * في هذه الحالة، يجب أن يكون `response` هو الرد الطبيعي بالمصري وفقًا للقواعد المذكورة أعلاه.
 
 **معلومات العيادة:**
 - الاسم: عيادة سمايل كير للأسنان
@@ -66,6 +65,45 @@ DENTAL_CLINIC_SYSTEM_PROMPT = """
 - لو حد قال "شكراً" أو حاجة شبه كده، رد عليه رد بسيط ولطيف.
 """
 
+# Define the expected JSON schema for Gemini's structured responses
+GEMINI_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "action": {
+            "type": "STRING",
+            "enum": ["book_appointment", "list_appointments", "chat"]
+        },
+        "name": {"type": "STRING"},
+        "date": {"type": "STRING"},
+        "response": {"type": "STRING"}
+    },
+    "required": ["action"]  # 'action' field is always required
+}
+
+# --- FastAPI Lifespan Events for Database Connection ---
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    Connects to the database and creates tables when the FastAPI app starts.
+    """
+    try:
+        db.connect()
+        db.create_tables([Appointment])
+        print("Database connected and tables ensured.")
+    except Exception as e:
+        print(f"Failed to connect to database or create tables: {e}")
+        # In a real application, you might want to raise an exception
+        # or log this more robustly to prevent the app from starting if DB is critical.
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    Closes the database connection when the FastAPI app shuts down.
+    """
+    if not db.is_closed():
+        db.close()
+        print("Database connection closed.")
 
 # --- FastAPI Webhook Endpoints ---
 
@@ -94,8 +132,6 @@ async def handle_webhook(request: Request):
         # Check if the message is a valid WhatsApp message
         if data.get("object") and data.get("entry"):
             # Navigate through the nested structure to get the message details
-            # This path might vary slightly based on the exact WhatsApp webhook payload
-            # Adding checks for existence of keys
             if data["entry"] and data["entry"][0].get("changes") and \
                data["entry"][0]["changes"][0].get("value") and \
                data["entry"][0]["changes"][0]["value"].get("messages"):
@@ -104,43 +140,84 @@ async def handle_webhook(request: Request):
                 sender_phone = message["from"]
                 msg_type = message["type"]
 
-                gemini_input = []
+                gemini_input_parts = []
+                response_to_user = ""
 
                 if msg_type == "text":
                     user_text = message["text"]["body"]
-                    # Prepare input for Gemini
-                    gemini_input = [
+                    gemini_input_parts = [
                         DENTAL_CLINIC_SYSTEM_PROMPT,
                         f"User message: \"{user_text}\""
                     ]
                 
                 elif msg_type == "audio":
                     audio_id = message["audio"]["id"]
-                    # Get audio data directly from WhatsApp's servers
                     audio_bytes, mime_type = get_whatsapp_media_bytes(audio_id)
 
                     if audio_bytes:
-                        # Prepare input for Gemini with the audio file
-                        gemini_input = [
+                        gemini_input_parts = [
                             DENTAL_CLINIC_SYSTEM_PROMPT,
                             "The user sent a voice note. Transcribe it, understand the request, and answer in Egyptian Arabic based on the clinic's information. Make the response concise.",
                             {"mime_type": mime_type, "data": audio_bytes}
                         ]
                     else:
-                        # If audio download fails, send an error message
                         send_message(sender_phone, "معلش، مقدرتش أسمع الرسالة الصوتية. ممكن تبعتها تاني أو تكتب سؤالك؟")
                         return {"status": "ok"}
                 
-                if gemini_input:
-                    # Get the response from Gemini
-                    response_text = get_gemini_response(gemini_input)
-                    # Send the response back to the user
-                    send_message(sender_phone, response_text)
+                if gemini_input_parts:
+                    # Get the structured response from Gemini
+                    gemini_structured_response = get_gemini_response(
+                        gemini_input_parts,
+                        generation_config={
+                            "responseMimeType": "application/json",
+                            "responseSchema": GEMINI_RESPONSE_SCHEMA
+                        }
+                    )
+
+                    action = gemini_structured_response.get("action")
+
+                    if action == "book_appointment":
+                        name = gemini_structured_response.get("name")
+                        date_str = gemini_structured_response.get("date")
+
+                        if name and date_str:
+                            try:
+                                # Validate date format and ensure it's in the future
+                                appointment_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                                if appointment_date < datetime.date.today():
+                                    response_to_user = "معلش، التاريخ اللي طلبته فات. ممكن تختار تاريخ في المستقبل؟"
+                                else:
+                                    # Attempt to save to database
+                                    Appointment.create(name=name, time=appointment_date)
+                                    response_to_user = f"تمام يا فندم، تم تسجيل طلب حجز ميعاد باسم {name} يوم {date_str}. بس خلي بالك، أنا مساعد ذكي ومبحجزش بنفسي، لازم تتصل بالعيادة على +20 2 1234-5678 عشان تأكد الميعاد ده."
+                            except ValueError:
+                                response_to_user = "معلش، صيغة التاريخ مش مظبوطة. ياريت تبعت التاريخ بصيغة سنة-شهر-يوم (YYYY-MM-DD) زي 2025-07-15."
+                            except Exception as db_e:
+                                print(f"Error saving appointment to DB: {db_e}")
+                                response_to_user = "آسف، حصل مشكلة في تسجيل الميعاد. ممكن تكلم العيادة على طول على الرقم ده: +20 2 1234-5678"
+                        else:
+                            response_to_user = "معلش، محتاج الاسم والتاريخ عشان أقدر أساعدك في طلب حجز الميعاد. ممكن توضح أكتر؟"
+
+                    elif action == "list_appointments":
+                        all_appointments = Appointment.select().order_by(Appointment.time.asc())
+                        if all_appointments.count() > 0:
+                            appointments_list = ["المواعيد المسجلة حالياً:"]
+                            for appt in all_appointments:
+                                appointments_list.append(f"- {appt.name} يوم {appt.time.strftime('%Y-%m-%d')}")
+                            response_to_user = "\n".join(appointments_list)
+                        else:
+                            response_to_user = "مفيش مواعيد مسجلة حالياً."
+
+                    elif action == "chat":
+                        response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
+                    else: # Fallback if action is null or unexpected
+                        response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
+
+                    send_message(sender_phone, response_to_user)
 
     except Exception as e:
         print(f"Error handling webhook: {e}")
-        # Optionally, send a generic error message back to the user if an unexpected error occurs
-        # send_message(sender_phone, "آسف، حصل خطأ غير متوقع. يرجى المحاولة مرة أخرى لاحقًا.")
+        send_message(sender_phone, "آسف، حصل خطأ غير متوقع. يرجى المحاولة مرة أخرى لاحقًا.")
 
     return {"status": "ok"}
 
@@ -159,9 +236,8 @@ def get_whatsapp_media_bytes(media_id: str):
         mime_type = media_info["mime_type"]
         
         # 2. Download the actual audio file using the URL
-        # IMPORTANT: This request also needs the auth header
         audio_response = requests.get(media_url, headers=headers)
-        audio_response.raise_for_status()  # Will raise an error for bad status (4xx or 5xx)
+        audio_response.raise_for_status()
 
         print(f"Successfully downloaded audio: {len(audio_response.content)} bytes, type: {mime_type}")
         return audio_response.content, mime_type
@@ -170,23 +246,34 @@ def get_whatsapp_media_bytes(media_id: str):
         print(f"Error getting media from WhatsApp: {e}")
         return None, None
 
-def get_gemini_response(input_parts: list):
+def get_gemini_response(input_parts: list, generation_config: dict = None):
     """
     Generates a response from Gemini using the provided input parts (text and/or audio).
+    Can optionally take a generation_config for structured output.
     """
     try:
-        # We use gemini-1.5-flash because it's fast and supports audio input.
         model = genai.GenerativeModel('gemini-2.0-flash')
         
-        # Generate the content
-        response = model.generate_content(input_parts)
+        # Generate the content with the specified generation_config
+        response = model.generate_content(input_parts, generation_config=generation_config)
         
-        # Clean up the response to ensure it's a single block of text
-        return response.text.strip()
-        
+        # If a structured JSON response is expected, parse it
+        if generation_config and generation_config.get("responseMimeType") == "application/json":
+            try:
+                # Gemini's response.text for JSON output is a string of the JSON
+                json_response = json.loads(response.text)
+                return json_response
+            except json.JSONDecodeError:
+                print(f"Gemini returned invalid JSON: {response.text}")
+                # Fallback for invalid JSON: default to chat action with an error message
+                return {"action": "chat", "response": "آسف، حصل خطأ في فهم طلبي. ممكن توضح أكتر؟"}
+        else:
+            # Fallback for non-structured response (shouldn't happen with the current prompt)
+            return {"action": "chat", "response": response.text.strip()}
+            
     except Exception as e:
         print(f"Error getting Gemini response: {e}")
-        return "آسف، حصل مشكلة عندي. ممكن تكلم العيادة على طول على الرقم ده: +20 2 1234-5678"
+        return {"action": "chat", "response": "آسف، حصل مشكلة عندي. ممكن تكلم العيادة على طول على الرقم ده: +20 2 1234-5678"}
 
 def send_message(to_phone: str, message_text: str):
     """ Sends a text message back to the user on WhatsApp """
@@ -208,3 +295,4 @@ def send_message(to_phone: str, message_text: str):
     except Exception as e:
         print(f"Error sending message: {e}")
         print(f"Response Body: {response.text}")
+

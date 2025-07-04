@@ -1,5 +1,7 @@
-fastapi
-uvicorn[standard]
-requests
-google-generativeai
-typing-extensions
+fastapi # FastAPI is used for building the web application
+uvicorn[standard] # uvicorn is used as the ASGI server
+requests # requests is used for making HTTP requests
+google-generativeai # google-generativeai is used for AI model interactions with Gemini
+typing-extensions # typing-extensions is used for type hints compatibility
+peewee # peewee is used as an ORM
+psycopg2-binary # psycopg2-binary is used for PostgreSQL database connection
