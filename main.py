@@ -201,7 +201,14 @@ def get_gemini_response(input_parts: list): # Removed generation_config paramete
         )
     # Always attempt to parse the response as JSON, as the prompt instructs it to be JSON
     try:
-        json_response = json.loads(response.text)
+        # Strip the leading "json" and whitespace
+        cleaned = response.strip()
+
+        # Remove the 'json' prefix if present
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].lstrip()
+        print(f"Cleaned response: {cleaned}")
+        json_response = json.loads(cleaned)
         return json_response
     except json.JSONDecodeError:
         print(f"Gemini returned invalid JSON (falling back to chat): {response.text}")
