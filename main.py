@@ -33,7 +33,7 @@ Important Rules:
 4. Be as concise as possible: Answer quickly and get straight to the point, without beating around the bush.
 5. Your response must be in JSON format only if the person wants to book and appointment (only the JSON object without prepending or postpending any text at all!). for example your response should only be in the following from without any other text around the JSON structure: {"action": "book_appointment", "name": "محمد احمد", "date": "2025-07-04"}
 5.1 Use the following structure To book an appointment: {"action": "book_appointment", "name": "person_to_book_appointment_for", "date": "YYYY-MM-DD"}
-5.2 Ensure name is a clear name (e.g., "Ahmed Mohamed") and date is a future date in "YYYY-MM-DD" format.
+5.2 Ensure name is a clear name (e.g., "Ahmed Mohamed") and date is a future date.
 5.3 If the name or date is not clear, or the date is in the past, write a text response and not a JSON structure asking for more clarification.
 5.4 For any other request (not booking) reply according to the rules mentioned in a text and not a JSON structure.
 
@@ -122,37 +122,34 @@ async def handle_webhook(request: Request):
         sender_phone = message["from"]
         msg_type = message["type"]
         user_text = message["text"]["body"]
-
-        response_to_user = ""
     
-        gemini_structured_response = get_gemini_response(user_text)
+        gemini_response = get_gemini_response(user_text)
 
-        action = gemini_structured_response.get("action")
+        action = gemini_response.get("action")
 
         if action == "book_appointment":
-            name = gemini_structured_response.get("name")
-            date_str = gemini_structured_response.get("date")
+            name = gemini_response.get("name")
+            date_str = gemini_response.get("date")
 
             if name and date_str:
                 try:
                     # Validate date format and ensure it's in the future
                     appointment_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
                     if appointment_date < datetime.date.today():
-                        response_to_user = "معلش، التاريخ اللي طلبته فات. ممكن تختار تاريخ في المستقبل؟"
+                        send_message(sender_phone, "معلش، التاريخ اللي طلبته فات. ممكن تختار تاريخ في المستقبل؟")
                     else:
                         Appointment.create(name=name, time=appointment_date)
-                        response_to_user = f"تمام يا فندم، تم تسجيل طلب حجز ميعاد باسم {name} يوم {date_str}."
+                        send_message(sender_phone, f"تمام يا فندم، تم تسجيل طلب حجز ميعاد باسم {name} يوم {date_str}.")
                 except ValueError:
-                    response_to_user = "معلش، صيغة التاريخ مش مظبوطة. ياريت تبعت التاريخ بصيغة سنة-شهر-يوم (YYYY-MM-DD) زي 2025-07-15."
+                    send_message(sender_phone, "معلش، صيغة التاريخ مش مظبوطة. ياريت تبعت التاريخ بصيغة سنة-شهر-يوم (YYYY-MM-DD) زي 2025-07-15.")
                 except Exception as db_e:
                     print(f"Error saving appointment to DB: {db_e}")
-                    response_to_user = "آسف، حصل مشكلة في تسجيل الميعاد. ممكن تكلم العيادة على طول على الرقم ده: +20 2 1234-5678"
+                    send_message(sender_phone, "آسف، حصل مشكلة في تسجيل الميعاد. ممكن تكلم العيادة على طول على الرقم ده: +20 2 1234-5678")
             else:
-                response_to_user = "معلش، محتاج الاسم والتاريخ عشان أقدر أساعدك في طلب حجز الميعاد. ممكن توضح أكتر؟"
+                send_message(sender_phone, "معلش، محتاج الاسم والتاريخ عشان أقدر أساعدك في طلب حجز الميعاد. ممكن توضح أكتر؟")
 
-        response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
-
-        send_message(sender_phone, response_to_user)
+        else:
+            send_message(sender_phone, gemini_response)
 
     except Exception as e:
         print(f"Error handling webhook: {e}")
