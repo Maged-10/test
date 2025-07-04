@@ -202,7 +202,7 @@ def get_gemini_response(input_parts: list): # Removed generation_config paramete
     # Always attempt to parse the response as JSON, as the prompt instructs it to be JSON
     try:
         # Strip the leading "json" and whitespace
-        cleaned = response.strip()
+        cleaned = response.text.strip()
 
         # Remove the 'json' prefix if present
         if cleaned.lower().startswith("json"):
