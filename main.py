@@ -65,7 +65,8 @@ DENTAL_CLINIC_SYSTEM_PROMPT = """
 - لو حد قال "شكراً" أو حاجة شبه كده، رد عليه رد بسيط ولطيف.
 """
 
-# Define the expected JSON schema for Gemini's structured responses
+# The GEMINI_RESPONSE_SCHEMA is still useful as a reference for the prompt,
+# but it won't be passed directly to the generate_content method.
 GEMINI_RESPONSE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
@@ -166,13 +167,8 @@ async def handle_webhook(request: Request):
                 
                 if gemini_input_parts:
                     # Get the structured response from Gemini
-                    gemini_structured_response = get_gemini_response(
-                        gemini_input_parts,
-                        generation_config={
-                            "responseMimeType": "application/json",
-                            "responseSchema": GEMINI_RESPONSE_SCHEMA
-                        }
-                    )
+                    # Removed generation_config for structured output, relying on prompt
+                    gemini_structured_response = get_gemini_response(gemini_input_parts)
 
                     action = gemini_structured_response.get("action")
 
@@ -246,30 +242,26 @@ def get_whatsapp_media_bytes(media_id: str):
         print(f"Error getting media from WhatsApp: {e}")
         return None, None
 
-def get_gemini_response(input_parts: list, generation_config: dict = None):
+def get_gemini_response(input_parts: list): # Removed generation_config parameter
     """
     Generates a response from Gemini using the provided input parts (text and/or audio).
-    Can optionally take a generation_config for structured output.
+    Relies on the prompt to guide Gemini to produce JSON.
     """
     try:
         model = genai.GenerativeModel('gemini-2.0-flash')
         
-        # Generate the content with the specified generation_config
-        response = model.generate_content(input_parts, generation_config=generation_config)
+        # Generate the content without explicitly passing generation_config for structured output
+        response = model.generate_content(input_parts)
         
-        # If a structured JSON response is expected, parse it
-        if generation_config and generation_config.get("responseMimeType") == "application/json":
-            try:
-                # Gemini's response.text for JSON output is a string of the JSON
-                json_response = json.loads(response.text)
-                return json_response
-            except json.JSONDecodeError:
-                print(f"Gemini returned invalid JSON: {response.text}")
-                # Fallback for invalid JSON: default to chat action with an error message
-                return {"action": "chat", "response": "آسف، حصل خطأ في فهم طلبي. ممكن توضح أكتر؟"}
-        else:
-            # Fallback for non-structured response (shouldn't happen with the current prompt)
-            return {"action": "chat", "response": response.text.strip()}
+        # Always attempt to parse the response as JSON, as the prompt instructs it to be JSON
+        try:
+            json_response = json.loads(response.text)
+            return json_response
+        except json.JSONDecodeError:
+            print(f"Gemini returned invalid JSON (falling back to chat): {response.text}")
+            # Fallback for invalid JSON: default to chat action with an error message
+            # The original prompt already includes a fallback response in Arabic.
+            return {"action": "chat", "response": response.text.strip() or "آسف، حصل خطأ في فهم طلبي. ممكن توضح أكتر؟"}
             
     except Exception as e:
         print(f"Error getting Gemini response: {e}")
@@ -295,4 +287,3 @@ def send_message(to_phone: str, message_text: str):
     except Exception as e:
         print(f"Error sending message: {e}")
         print(f"Response Body: {response.text}")
-
