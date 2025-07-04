@@ -4,6 +4,7 @@ import os
 from google import genai
 from google.genai import types
 import json
+import re
 import datetime
 from db import db, Appointment
 
@@ -202,7 +203,10 @@ def get_gemini_response(input): # Removed generation_config parameter
     print(f"Raw Response from Gemini: {response.text}")
     # Always attempt to parse the response as JSON, as the prompt instructs it to be JSON
     try:
-        json_response = json.loads(response.text)
+        # Remove ```json or ``` and any whitespace around
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", response.text.strip(), flags=re.IGNORECASE)
+        print(f"Cleaned Response: {cleaned}")
+        json_response = json.loads(cleaned)
         return json_response
     except json.JSONDecodeError:
         print(f"Gemini returned invalid JSON (falling back to chat): {response.text}")
