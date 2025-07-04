@@ -150,10 +150,7 @@ async def handle_webhook(request: Request):
             else:
                 response_to_user = "معلش، محتاج الاسم والتاريخ عشان أقدر أساعدك في طلب حجز الميعاد. ممكن توضح أكتر؟"
 
-        elif action == "chat":
-            response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
-        else: # Fallback if action is null or unexpected
-            response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
+        response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
 
         send_message(sender_phone, response_to_user)
 
