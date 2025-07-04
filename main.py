@@ -143,43 +143,39 @@ async def handle_webhook(request: Request):
         gemini_input_parts = []
         response_to_user = ""
 
-        if msg_type == "text":
-            user_text = message["text"]["body"]
-        
-        if gemini_input_parts:
-            # Get the structured response from Gemini
-            # Removed generation_config for structured output, relying on prompt
-            gemini_structured_response = get_gemini_response(user_text)
+        user_text = message["text"]["body"]
+    
+        gemini_structured_response = get_gemini_response(user_text)
 
-            action = gemini_structured_response.get("action")
+        action = gemini_structured_response.get("action")
 
-            if action == "book_appointment":
-                name = gemini_structured_response.get("name")
-                date_str = gemini_structured_response.get("date")
+        if action == "book_appointment":
+            name = gemini_structured_response.get("name")
+            date_str = gemini_structured_response.get("date")
 
-                if name and date_str:
-                    try:
-                        # Validate date format and ensure it's in the future
-                        appointment_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
-                        if appointment_date < datetime.date.today():
-                            response_to_user = "معلش، التاريخ اللي طلبته فات. ممكن تختار تاريخ في المستقبل؟"
-                        else:
-                            Appointment.create(name=name, time=appointment_date)
-                            response_to_user = f"تمام يا فندم، تم تسجيل طلب حجز ميعاد باسم {name} يوم {date_str}."
-                    except ValueError:
-                        response_to_user = "معلش، صيغة التاريخ مش مظبوطة. ياريت تبعت التاريخ بصيغة سنة-شهر-يوم (YYYY-MM-DD) زي 2025-07-15."
-                    except Exception as db_e:
-                        print(f"Error saving appointment to DB: {db_e}")
-                        response_to_user = "آسف، حصل مشكلة في تسجيل الميعاد. ممكن تكلم العيادة على طول على الرقم ده: +20 2 1234-5678"
-                else:
-                    response_to_user = "معلش، محتاج الاسم والتاريخ عشان أقدر أساعدك في طلب حجز الميعاد. ممكن توضح أكتر؟"
+            if name and date_str:
+                try:
+                    # Validate date format and ensure it's in the future
+                    appointment_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                    if appointment_date < datetime.date.today():
+                        response_to_user = "معلش، التاريخ اللي طلبته فات. ممكن تختار تاريخ في المستقبل؟"
+                    else:
+                        Appointment.create(name=name, time=appointment_date)
+                        response_to_user = f"تمام يا فندم، تم تسجيل طلب حجز ميعاد باسم {name} يوم {date_str}."
+                except ValueError:
+                    response_to_user = "معلش، صيغة التاريخ مش مظبوطة. ياريت تبعت التاريخ بصيغة سنة-شهر-يوم (YYYY-MM-DD) زي 2025-07-15."
+                except Exception as db_e:
+                    print(f"Error saving appointment to DB: {db_e}")
+                    response_to_user = "آسف، حصل مشكلة في تسجيل الميعاد. ممكن تكلم العيادة على طول على الرقم ده: +20 2 1234-5678"
+            else:
+                response_to_user = "معلش، محتاج الاسم والتاريخ عشان أقدر أساعدك في طلب حجز الميعاد. ممكن توضح أكتر؟"
 
-            elif action == "chat":
-                response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
-            else: # Fallback if action is null or unexpected
-                response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
+        elif action == "chat":
+            response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
+        else: # Fallback if action is null or unexpected
+            response_to_user = gemini_structured_response.get("response", "آسف، حصل خطأ في فهم طلبك. ممكن توضح أكتر؟")
 
-            send_message(sender_phone, response_to_user)
+        send_message(sender_phone, response_to_user)
 
     except Exception as e:
         print(f"Error handling webhook: {e}")
